@@ -2,30 +2,30 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>切图工具</title>
+    <title>切图工具 Pro Max 3.0</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f7; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .container { width: 600px; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        h1 { text-align: center; font-size: 24px; margin-bottom: 25px; }
-        .upload-box { border: 2px dashed #ccc; padding: 40px; text-align: center; cursor: pointer; border-radius: 12px; margin-bottom: 20px; transition: 0.3s; }
-        .upload-box.dragover { border-color: #0071e3; background: #eef7ff; }
+        .container { width: 640px; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        h1 { text-align: center; font-size: 22px; margin-bottom: 20px; }
+        .upload-box { border: 2px dashed #ccc; padding: 30px; text-align: center; cursor: pointer; border-radius: 12px; margin-bottom: 15px; transition: 0.3s; }
+        .upload-box.dragover { border-color: #0071e3; background: #f0f7ff; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
-        label { display: block; font-size: 13px; color: #666; margin-bottom: 5px; }
-        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #0071e3; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 10px; }
-        .preview-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 15px; }
+        label { display: block; font-size: 13px; color: #555; margin-bottom: 5px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 14px; background: #0071e3; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        .preview-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 15px; }
         .preview-item { position: relative; aspect-ratio: 1; border: 1px solid #ddd; border-radius: 4px; overflow: hidden; }
         .preview-item img { width: 100%; height: 100%; object-fit: cover; }
-        .del { position: absolute; top: 0; right: 0; background: red; color: white; cursor: pointer; font-size: 12px; padding: 0 4px; }
+        .del { position: absolute; top: 0; right: 0; background: red; color: white; cursor: pointer; font-size: 10px; padding: 2px 4px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>📦 切图工具</h1>
-    <div class="upload-box" id="dropZone">点击或拖拽图片到此</div>
+    <h1>📦 批量切图工具</h1>
+    <div class="upload-box" id="dropZone">将多张详情页长图拖拽到这里<br>支持多选同时上传 JPG / PNG</div>
     <input type="file" id="fileInput" hidden multiple accept="image/*">
     <div class="preview-grid" id="previewGrid"></div>
 
@@ -41,33 +41,34 @@
     </div>
     <div class="grid">
         <div>
-            <label>导出长度 (px)</label>
+            <label>切割高度 (px)</label>
             <input type="number" id="sliceH" value="1200">
         </div>
         <div>
             <label>导出格式</label>
-            <select id="format">
-                <option value="image/jpeg">JPG</option>
-                <option value="image/png">PNG</option>
-            </select>
+            <select id="format"><option value="image/jpeg">JPG</option><option value="image/png">PNG</option></select>
         </div>
     </div>
     <div class="grid">
         <div>
-            <label>JPG 压缩 (KB)</label>
-            <input type="number" id="targetKB" value="500">
+            <label>压缩模式</label>
+            <input type="text" value="JPG 可自定义 KB" disabled>
+        </div>
+        <div>
+            <label>目标大小 (KB - 0为不压缩)</label>
+            <input type="number" id="targetKB" value="0">
         </div>
     </div>
-    <button id="runBtn">开始切图并打包</button>
+
+    <button id="runBtn">开始批量切图并归类下载</button>
     <p id="status" style="font-size: 12px; text-align: center; color: #888; margin-top: 10px;"></p>
 </div>
 
 <script>
-    const dropZone = document.getElementById('dropZone'), fileInput = document.getElementById('fileInput'), previewGrid = document.getElementById('previewGrid');
+    const fileInput = document.getElementById('fileInput'), dropZone = document.getElementById('dropZone'), previewGrid = document.getElementById('previewGrid');
     const wMode = document.getElementById('wMode'), targetWidth = document.getElementById('targetWidth'), format = document.getElementById('format'), targetKB = document.getElementById('targetKB');
     let files = [];
 
-    // 上传逻辑修复
     dropZone.onclick = () => fileInput.click();
     fileInput.onchange = (e) => addFiles(e.target.files);
     dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
@@ -81,30 +82,49 @@
 
     function render() {
         previewGrid.innerHTML = files.map((f, i) => `<div class="preview-item"><img src="${URL.createObjectURL(f)}"><div class="del" onclick="files.splice(${i},1);render()">X</div></div>`).join('');
+        document.getElementById('status').innerText = `已成功载入 ${files.length} 张长图，等待处理。`;
     }
 
-    wMode.onchange = () => targetWidth.disabled = wMode.value === 'orig';
-    format.onchange = () => targetKB.disabled = format.value === 'image/png';
+    wMode.onchange = () => targetWidth.disabled = (wMode.value === 'orig');
+
+    async function getBlobWithTargetKB(canvas, format, targetKB) {
+        if (format !== 'image/jpeg' || targetKB <= 0) return new Promise(r => canvas.toBlob(r, format, 0.95));
+        let quality = 0.9;
+        let blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+        while (quality > 0.1 && blob.size / 1024 > targetKB) {
+            quality -= 0.1;
+            blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+        }
+        return blob;
+    }
 
     document.getElementById('runBtn').onclick = async () => {
+        if (files.length === 0) return alert('请先上传图片');
+        document.getElementById('status').innerText = '正在处理中...';
         const zip = new JSZip();
-        for(let file of files) {
+        const sliceH = parseInt(document.getElementById('sliceH').value);
+        const targetKBVal = parseInt(targetKB.value);
+
+        for (let file of files) {
             const img = await new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = URL.createObjectURL(file); });
             const canvas = document.createElement('canvas');
             const w = wMode.value === 'custom' ? parseInt(targetWidth.value) : img.width;
             canvas.width = w; canvas.height = img.height * (w / img.width);
             canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
             
-            const total = Math.ceil(canvas.height / parseInt(document.getElementById('sliceH').value));
-            for(let i=0; i<total; i++) {
+            const total = Math.ceil(canvas.height / sliceH);
+            for (let i = 0; i < total; i++) {
                 const s = document.createElement('canvas');
-                s.width = canvas.width; s.height = Math.min(parseInt(document.getElementById('sliceH').value), canvas.height - i*parseInt(document.getElementById('sliceH').value));
-                s.getContext('2d').drawImage(canvas, 0, i*parseInt(document.getElementById('sliceH').value), s.width, s.height, 0, 0, s.width, s.height);
-                const blob = await new Promise(r => s.toBlob(r, format.value, format.value === 'image/jpeg' ? 0.9 : 1));
-                zip.folder(file.name.split('.')[0]).file(`${i+1}.${format.value === 'image/png' ? 'png' : 'jpg'}`, blob);
+                s.width = canvas.width; 
+                s.height = Math.min(sliceH, canvas.height - i * sliceH);
+                s.getContext('2d').drawImage(canvas, 0, i * sliceH, s.width, s.height, 0, 0, s.width, s.height);
+                
+                const blob = await getBlobWithTargetKB(s, format.value, targetKBVal);
+                zip.folder(file.name.split('.')[0]).file(`${i + 1}.${format.value.split('/')[1]}`, blob);
             }
         }
-        saveAs(await zip.generateAsync({type:'blob'}), "切图文件.zip");
+        saveAs(await zip.generateAsync({ type: 'blob' }), "切图文件.zip");
+        document.getElementById('status').innerText = '打包完成！';
     };
 </script>
 </body>
